@@ -37,6 +37,9 @@ async def on_ready():
         if automatic_pot:
             utcdate = datetime.datetime.utcnow().strftime("%Y%m%d")
             if utcdate != prevutcdate:
+                print(f'Sleeping 10 minutes for UTC date change...')
+                # we must wait 10 minutes before honeygain API becomes responsive again after UTC date change
+                await asyncio.sleep(int(10*60))
                 prevutcdate = utcdate
                 lpotcounter = random.randint(1, int(60/update_minutes))
                 print(f"It's a new UTC day, so {int(lpotcounter*update_minutes)} mins until lucky pot try")
