@@ -20,7 +20,14 @@ async def on_ready():
     prevlpotmsg = None
     while True:
         await asyncio.sleep(int(update_minutes*60))
-
+        utcdate = datetime.datetime.utcnow().strftime("%Y%m%d")
+        if utcdate != prevutcdate:
+            prevutcdate = utcdate
+            print(f'Sleeping 10 minutes for UTC date change...')
+            # we must wait 10 minutes before honeygain API becomes responsive again after UTC date change
+            await asyncio.sleep(int(10*60))
+            lpotcounter = random.randint(1, int(60/update_minutes))
+            # print(f"It's a new UTC day, so {int(lpotcounter*update_minutes)} mins until lucky pot try")
         if refresh_status:
             old_dev_dict = {}
             for dev in devdata[0]:
@@ -35,14 +42,6 @@ async def on_ready():
             await initialmsg.edit(embeds=devdata[1])
 
         if automatic_pot:
-            utcdate = datetime.datetime.utcnow().strftime("%Y%m%d")
-            if utcdate != prevutcdate:
-                print(f'Sleeping 10 minutes for UTC date change...')
-                # we must wait 10 minutes before honeygain API becomes responsive again after UTC date change
-                await asyncio.sleep(int(10*60))
-                prevutcdate = utcdate
-                lpotcounter = random.randint(1, int(60/update_minutes))
-                print(f"It's a new UTC day, so {int(lpotcounter*update_minutes)} mins until lucky pot try")
             # print(f'UTCDATA: {utcdate}')
             if lpotcounter > 0:
                 lpotcounter = lpotcounter - 1
