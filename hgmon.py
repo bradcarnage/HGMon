@@ -20,10 +20,10 @@ async def on_ready():
     prevutcdate = None
     prevlpotmsg = None
     lpotcounter = -1
-    utcdate = None
     while True:
         await asyncio.sleep(int(update_minutes*60))
         devcache = devdata
+        utcdate = datetime.datetime.utcnow().strftime("%Y%m%d")
         if utcdate != prevutcdate:
             prevutcdate = utcdate
             print(f'Sleeping 10 minutes for UTC date change...')
