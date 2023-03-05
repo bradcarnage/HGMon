@@ -7,20 +7,23 @@ refresh_status = True
 automatic_pot = True
 warn_offline = True
 
+devcache = None
 @client.event
 async def on_ready():
-    global update_minutes
+    global update_minutes, devcache
     print(f"We're online! We've logged in as {client.me.name}.")
     print(f'Clearing Channel...')
     logs_channel = await interactions.get(client, interactions.Channel, object_id=discord_channel)
     await logs_channel.purge(amount=100)
-    devdata = get_devices()
-    initialmsg = await logs_channel.send(embeds=devdata[1])
-    prevutcdate = "NA"
+    devdata, devembeds = get_devices()
+    initialmsg = await logs_channel.send(embeds=devembeds)
+    prevutcdate = None
     prevlpotmsg = None
+    lpotcounter = -1
+    utcdate = None
     while True:
         await asyncio.sleep(int(update_minutes*60))
-        utcdate = datetime.datetime.utcnow().strftime("%Y%m%d")
+        devcache = devdata
         if utcdate != prevutcdate:
             prevutcdate = utcdate
             print(f'Sleeping 10 minutes for UTC date change...')
@@ -28,20 +31,20 @@ async def on_ready():
             await asyncio.sleep(int(10*60))
             lpotcounter = random.randint(1, int(60/update_minutes))
             # print(f"It's a new UTC day, so {int(lpotcounter*update_minutes)} mins until lucky pot try")
-        if refresh_status:
+        if refresh_status == True:
             old_dev_dict = {}
-            for dev in devdata[0]:
+            for dev in devdata:
                 old_dev_dict[dev["id"]] = dev
-            devdata = get_devices()
+            devdata, devembeds = get_devices()
             if warn_offline:
-                for dev in devdata[0]:
+                for dev in devdata:
                     if dev["id"] in old_dev_dict:
                         old_dev = old_dev_dict[dev["id"]]
-                        if old_dev["status"] == "active" and dev["status"] == "inactive":
+                        if old_dev["status"] != "inactive" and dev["status"] == "inactive":
                             await logs_channel.send(f"@everyone {get_nickname(dev['id'][-4:])} went inactive!")
-            await initialmsg.edit(embeds=devdata[1])
+            await initialmsg.edit(embeds=devembeds)
 
-        if automatic_pot:
+        if automatic_pot == True:
             # print(f'UTCDATA: {utcdate}')
             if lpotcounter > 0:
                 lpotcounter = lpotcounter - 1
@@ -147,8 +150,17 @@ def get_devices(retry_attempt=False):
             req = urllib.request.Request('https://dashboard.honeygain.com/api/v2/devices', headers={'Authorization': f'Bearer {jwt}'})
             response = urllib.request.urlopen(req)
             devs = json.loads(response.read().decode())
-            for i, entry in enumerate(devs.copy()["data"]):
-                devs["data"][i]["last_active_time_unix"] = int(time.mktime(time.strptime(entry["last_active_time"], "%Y-%m-%d %H:%M:%S")))
+            for i, dev in enumerate(devs.copy()["data"]):
+                devs["data"][i]["last_active_time_unix"] = int(time.mktime(time.strptime(dev["last_active_time"], "%Y-%m-%d %H:%M:%S")))
+                try:
+                    for cdev in devcache["data"]:
+                        if dev["id"] == cdev["id"] and cdev["status"] != "pending" and dev["status"] != cdev["status"]:
+                            print(f"{get_nickname(dev['id'][-4:])} status is pending to {dev['status']} (undecided)")
+                            devs["data"][i]["status"] = "pending"
+                            # set status to pending if previous status doesn't equal this one, and previous status isn't pending. (filter status between active/inactive to be "pending".)
+                except Exception as e:
+                    pass
+        # start embed generation
         em=interactions.Embed(title="Client List", description="A full list of clients, activity status, IP addresses, etc.", timestamp=datetime.datetime.utcnow())
         embs = ["", "", ""]
         for dev in devs["data"]:
@@ -163,6 +175,7 @@ def get_devices(retry_attempt=False):
         em.add_field(name="Activity", value=embs[1], inline=True)
         em.add_field(name="ISP Information", value=embs[2], inline=True)
         em.set_footer(text=f"Last Updated")
+        # end embed generation
         return((devs["data"], em))
     except Exception:
         if retry_attempt:
