@@ -29,7 +29,7 @@ async def on_ready():
             print(f'Sleeping 15 minutes for UTC date change...')
             # we must wait 10 minutes before honeygain API becomes responsive again after UTC date change
             await asyncio.sleep(int(15*60))
-            lpotcounter = random.randint(1, int(60/update_minutes))
+            lpotcounter = random.randint(int(30/update_minutes), int(60/update_minutes))
             # print(f"It's a new UTC day, so {int(lpotcounter*update_minutes)} mins until lucky pot try")
         if refresh_status == True:
             old_dev_dict = {}
