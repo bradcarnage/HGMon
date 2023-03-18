@@ -5,47 +5,51 @@ discord_channel = <discord_channel_id> # THIS CHANNEL WILL BE CLEARED EVERY TIME
 update_minutes = 5 # How often to query the honeygain API (quicker than 2 mins makes no sense...)
 refresh_status = True
 automatic_pot = True
-warn_offline = True
+warn_offline = 10 # set to 0 if disabled, otherwise warn if devices offline for this minutes
+warned_cache = {} # once warned device offline, put message entry into this cache
 
 devcache = None
 @client.event
 async def on_ready():
-    global update_minutes, devcache
+    global update_minutes, devcache, refresh_status, automatic_pot, warn_offline, warned_cache
     print(f"We're online! We've logged in as {client.me.name}.")
     print(f'Clearing Channel...')
     logs_channel = await interactions.get(client, interactions.Channel, object_id=discord_channel)
     await logs_channel.purge(amount=100)
     devdata, devembeds = get_devices()
     initialmsg = await logs_channel.send(embeds=devembeds)
-    prevutcdate = None
+    prevutcdate = datetime.datetime.utcnow().strftime("%Y%m%d")
     prevlpotmsg = None
-    lpotcounter = -1
+    # somewhere between 30 and 60 minutes, try to redeem lucky pot
+    lpotcounter = random.randint(int(30/update_minutes), int(60/update_minutes))
     while True:
-        await asyncio.sleep(int(update_minutes*60))
         devcache = devdata
-        utcdate = datetime.datetime.utcnow().strftime("%Y%m%d")
-        if utcdate != prevutcdate:
-            prevutcdate = utcdate
-            print(f'Sleeping 15 minutes for UTC date change...')
-            # we must wait 10 minutes before honeygain API becomes responsive again after UTC date change
-            await asyncio.sleep(int(15*60))
-            lpotcounter = random.randint(int(30/update_minutes), int(60/update_minutes))
-            # print(f"It's a new UTC day, so {int(lpotcounter*update_minutes)} mins until lucky pot try")
+        if datetime.datetime.utcnow().strftime("%Y%m%d") != prevutcdate:
+            # wait 15 minutes before honeygain API becomes responsive again after UTC date change
+            print(f'New UTC date; closing. (please restart in 15 minutes)')
+            # await asyncio.sleep(int(15*60))
+            quit()
         if refresh_status == True:
-            old_dev_dict = {}
-            for dev in devdata:
-                old_dev_dict[dev["id"]] = dev
             devdata, devembeds = get_devices()
-            if warn_offline:
+            if warn_offline > 0:
                 for dev in devdata:
-                    if dev["id"] in old_dev_dict:
-                        old_dev = old_dev_dict[dev["id"]]
-                        if old_dev["status"] != "inactive" and dev["status"] == "inactive":
-                            await logs_channel.send(f"@everyone {get_nickname(dev['id'][-4:])} went inactive!")
+                    lastactive = dev["last_active_time_unix"]
+                    currtime = int(time.time())
+                    timediff = int(currtime-lastactive)
+                    print(f'Last active: {lastactive} Currtime: {currtime} TimeDiff: {timediff}')
+                    if dev["id"] in warned_cache:
+                        if timediff < int(warn_offline*60):
+                            msg = warned_cache[dev["id"]]
+                            await msg.delete()
+                            del warned_cache[dev["id"]]
+                    else:
+                        if timediff > int(warn_offline*60):
+                            nickname = get_nickname(dev['id'][-4:])
+                            if not nickname.endswith("unknown"):
+                                warned_cache[dev["id"]] = await logs_channel.send(f"@everyone {nickname} is inactive!")
             await initialmsg.edit(embeds=devembeds)
 
         if automatic_pot == True:
-            # print(f'UTCDATA: {utcdate}')
             if lpotcounter > 0:
                 lpotcounter = lpotcounter - 1
             elif lpotcounter == 0:
@@ -60,6 +64,7 @@ async def on_ready():
                     prevlpotmsg = await logs_channel.send(f"Lucky pot could not be redeemed..")
                     pass
                 lpotcounter = -1
+        await asyncio.sleep(int(update_minutes*60))
 
 @client.command(
     name="list",
