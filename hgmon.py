@@ -4,7 +4,7 @@ client = interactions.Client("<discord_bot_token>")
 discord_channel = <discord_channel_id> # THIS CHANNEL WILL BE CLEARED EVERY TIME BOT STARTS... !!! BEWARE !!!
 update_minutes = 5 # How often to query the honeygain API (quicker than 2 mins makes no sense...)
 refresh_status = True
-automatic_pot = True
+automatic_pot = False
 warn_offline = 10 # set to 0 if disabled, otherwise warn if devices offline for this minutes
 warned_cache = {} # once warned device offline, put message entry into this cache
 
